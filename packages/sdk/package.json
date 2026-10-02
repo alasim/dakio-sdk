@@ -1,6 +1,6 @@
 {
   "name": "@dakio/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build any store on Dakio \u2014 catalog, sale prices, COD checkout with fake-order protection, couriers and Nova behind your own React or Next.js site.",
   "license": "MIT",
   "author": "Dakio <hello@dakio.io>",
@@ -29,32 +29,73 @@
   ],
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "types": "./dist/index.d.cts",
+  "typesVersions": {
+    "*": {
+      "react": [
+        "./dist/react/index.d.cts"
+      ],
+      "next": [
+        "./dist/next/index.d.cts"
+      ],
+      "bd": [
+        "./dist/bd/index.d.cts"
+      ],
+      "pixel": [
+        "./dist/pixel/index.d.cts"
+      ]
+    }
+  },
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
     },
     "./react": {
-      "types": "./dist/react/index.d.ts",
-      "import": "./dist/react/index.js",
-      "require": "./dist/react/index.cjs"
+      "import": {
+        "types": "./dist/react/index.d.ts",
+        "default": "./dist/react/index.js"
+      },
+      "require": {
+        "types": "./dist/react/index.d.cts",
+        "default": "./dist/react/index.cjs"
+      }
     },
     "./next": {
-      "types": "./dist/next/index.d.ts",
-      "import": "./dist/next/index.js",
-      "require": "./dist/next/index.cjs"
+      "import": {
+        "types": "./dist/next/index.d.ts",
+        "default": "./dist/next/index.js"
+      },
+      "require": {
+        "types": "./dist/next/index.d.cts",
+        "default": "./dist/next/index.cjs"
+      }
     },
     "./bd": {
-      "types": "./dist/bd/index.d.ts",
-      "import": "./dist/bd/index.js",
-      "require": "./dist/bd/index.cjs"
+      "import": {
+        "types": "./dist/bd/index.d.ts",
+        "default": "./dist/bd/index.js"
+      },
+      "require": {
+        "types": "./dist/bd/index.d.cts",
+        "default": "./dist/bd/index.cjs"
+      }
     },
     "./pixel": {
-      "types": "./dist/pixel/index.d.ts",
-      "import": "./dist/pixel/index.js",
-      "require": "./dist/pixel/index.cjs"
+      "import": {
+        "types": "./dist/pixel/index.d.ts",
+        "default": "./dist/pixel/index.js"
+      },
+      "require": {
+        "types": "./dist/pixel/index.d.cts",
+        "default": "./dist/pixel/index.cjs"
+      }
     },
     "./package.json": "./package.json"
   },
@@ -62,8 +103,9 @@
     "build": "tsup && node scripts/use-client.mjs",
     "test": "node --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build",
-    "release": "npm publish --access public"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build && npm run check:package",
+    "release": "npm publish --access public",
+    "check:package": "attw --pack ."
   },
   "peerDependencies": {
     "react": ">=18"
@@ -74,6 +116,7 @@
     }
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@types/node": "^22.20.5",
     "@types/react": "^19.0.0",
     "react": "^19.0.0",
