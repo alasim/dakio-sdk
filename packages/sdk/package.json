@@ -1,7 +1,7 @@
 {
   "name": "@dakio/sdk",
   "version": "0.1.0",
-  "description": "Build any store on Dakio — catalog, sale prices, COD checkout with fake-order protection, couriers and Nova behind your own React or Next.js site.",
+  "description": "Build any store on Dakio \u2014 catalog, sale prices, COD checkout with fake-order protection, couriers and Nova behind your own React or Next.js site.",
   "license": "MIT",
   "author": "Dakio <hello@dakio.io>",
   "homepage": "https://www.dakio.io/developers",
@@ -62,7 +62,8 @@
     "build": "tsup && node scripts/use-client.mjs",
     "test": "node --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+    "prepublishOnly": "npm run typecheck && npm test && npm run build",
+    "release": "npm publish --access public"
   },
   "peerDependencies": {
     "react": ">=18"
