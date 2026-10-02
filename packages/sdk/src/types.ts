@@ -100,6 +100,7 @@ export interface ListQuery {
   /** A category id or slug; its sub-categories are included. */
   category?: string
   search?: string
+  /** Product ids or slugs, at most 100. Results come in `sort` order, not the order given. */
   ids?: string[]
   page?: number
   /** 1–100, default 24. */
