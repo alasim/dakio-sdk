@@ -261,4 +261,6 @@ Two complete stores (home, shop, product, bag, checkout with OTP, tracking, "my 
 
 `@dakio/sdk` follows semver and speaks Dakio's storefront API v1. Inside v1, fields are added, never renamed or removed.
 
+Full docs: [dakio.io/developers/docs](https://dakio.io/developers/docs).
+
 MIT © Dakio
