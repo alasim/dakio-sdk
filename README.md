@@ -29,7 +29,8 @@ DAKIO_E2E_URL=https://<api>/api/sdk/v1 DAKIO_E2E_KEY=dk_pub_test_… npm test
 ## Release
 
 ```bash
-cd packages/sdk
-npm version patch                 # or minor
-npm publish --access public       # runs typecheck, tests and build first
+npm version patch -w @dakio/sdk   # or minor
+npm run release                   # publishes packages/sdk; runs typecheck, tests and build first
 ```
+
+Publishing from the repo root with plain `npm publish` fails: the root is only the workspace container.

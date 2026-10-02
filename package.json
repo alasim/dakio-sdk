@@ -2,10 +2,14 @@
   "name": "dakio-sdk-monorepo",
   "private": true,
   "description": "@dakio/sdk and its starter stores",
-  "workspaces": ["packages/*", "examples/*"],
+  "workspaces": [
+    "packages/*",
+    "examples/*"
+  ],
   "scripts": {
     "build": "npm run build -w @dakio/sdk",
     "test": "npm test -w @dakio/sdk",
-    "typecheck": "npm run typecheck -w @dakio/sdk"
+    "typecheck": "npm run typecheck -w @dakio/sdk",
+    "release": "npm publish -w @dakio/sdk --access public"
   }
 }
