@@ -9,8 +9,11 @@
  *   // app/p/[slug]/page.tsx
  *   export async function generateMetadata({ params }) { … return productMetadata(product, store, { url }) }
  *   <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(productJsonLd(product, store, { url })) }} />
+ *   // app/api/dakio/revalidate/route.ts — pages refresh the moment a product changes
+ *   export const POST = createRevalidateRoute({ secret: process.env.DAKIO_WEBHOOK_SECRET!, revalidatePath, revalidateTag })
  */
 import type { Commerce, Product, Store } from '../types.ts'
+import { verifyWebhook, type WebhookEvent } from '../webhooks/index.ts'
 
 export interface SitemapEntry {
   url: string
@@ -113,5 +116,80 @@ export function productMetadata(product: Product, store: Pick<Store, 'name'>, op
       siteName: store.name,
       ...(product.images[0] ? { images: [{ url: product.images[0] }] } : {}),
     },
+  }
+}
+
+export interface RevalidateTargets {
+  /** Paths to refresh, as `revalidatePath(path)` takes them. `'/'` with type `'layout'` refreshes everything. */
+  paths: (string | { path: string; type: 'page' | 'layout' })[]
+  /** Cache tags, if your own fetches use them. */
+  tags?: string[]
+}
+
+/**
+ * What a change refreshes by default, with the routes `dakioSitemap` assumes
+ * (`/p/<slug>`, `/shop`, home). A store change (name, delivery rates, a sale
+ * banner — sale prices too) refreshes every page.
+ */
+export function defaultRevalidateTargets(event: WebhookEvent, options: { productPath?: (slug: string) => string } = {}): RevalidateTargets {
+  const productPath = options.productPath || ((slug: string) => `/p/${slug}`)
+  switch (event.type) {
+    case 'product.updated':
+    case 'product.deleted':
+      return {
+        paths: [...(event.data.slug ? [productPath(event.data.slug)] : []), { path: '/shop', type: 'layout' }, '/'],
+        tags: ['dakio:products', `dakio:product:${event.data.id}`],
+      }
+    case 'stock.changed':
+      return { paths: [productPath(event.data.slug), { path: '/shop', type: 'layout' }], tags: ['dakio:products', `dakio:product:${event.data.productId}`] }
+    case 'store.updated':
+      return { paths: [{ path: '/', type: 'layout' }], tags: ['dakio'] }
+    default:
+      return { paths: [] }
+  }
+}
+
+/**
+ * A Next.js route handler for Dakio webhooks that refreshes the pages a change
+ * touches — so an edited price shows on the product page in seconds instead of
+ * at the next timed revalidation. Point a webhook (Settings → Developers →
+ * Webhooks, events product.*, stock.changed, store.updated) at it.
+ *
+ *   // app/api/dakio/revalidate/route.ts
+ *   import { revalidatePath, revalidateTag } from 'next/cache'
+ *   import { createRevalidateRoute } from '@dakio/sdk/next'
+ *   export const POST = createRevalidateRoute({ secret: process.env.DAKIO_WEBHOOK_SECRET!, revalidatePath, revalidateTag })
+ *
+ * `revalidatePath` / `revalidateTag` are passed in, so this module never
+ * imports Next itself. `targets(event)` overrides what gets refreshed;
+ * `onEvent(event)` runs for every verified event (orders too).
+ */
+export function createRevalidateRoute(options: {
+  secret: string
+  revalidatePath: (path: string, type?: 'page' | 'layout') => void
+  revalidateTag?: (tag: string, profile?: any) => void
+  targets?: (event: WebhookEvent) => RevalidateTargets
+  productPath?: (slug: string) => string
+  onEvent?: (event: WebhookEvent) => void | Promise<void>
+}): (req: Request) => Promise<Response> {
+  const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
+  return async function POST(req: Request): Promise<Response> {
+    const body = await req.text()
+    let event: WebhookEvent
+    try {
+      event = await verifyWebhook({ body, signature: req.headers.get('dakio-signature'), secret: options.secret })
+    } catch (err) {
+      return json({ ok: false, error: (err as Error).message }, 400)
+    }
+    const t = options.targets ? options.targets(event) : defaultRevalidateTargets(event, { productPath: options.productPath })
+    const paths: string[] = []
+    for (const p of t.paths) {
+      if (typeof p === 'string') { options.revalidatePath(p); paths.push(p) }
+      else { options.revalidatePath(p.path, p.type); paths.push(`${p.path} (${p.type})`) }
+    }
+    // 'max': serve stale while refetching (Next 16's recommended profile; older Next ignores it).
+    if (options.revalidateTag) for (const tag of t.tags || []) options.revalidateTag(tag, 'max')
+    if (options.onEvent) await options.onEvent(event)
+    return json({ ok: true, type: event.type, revalidated: paths })
   }
 }

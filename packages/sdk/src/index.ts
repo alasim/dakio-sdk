@@ -6,8 +6,9 @@
  *   const { data } = await dakio.products.list({ limit: 24 })
  *
  * Subpaths: '@dakio/sdk/react' (cart, checkout hooks), '@dakio/sdk/next'
- * (sitemap, robots, JSON-LD), '@dakio/sdk/bd' (districts, phones),
- * '@dakio/sdk/pixel' (Meta Pixel event ids).
+ * (sitemap, robots, JSON-LD, the webhook revalidate route), '@dakio/sdk/bd'
+ * (districts, phones), '@dakio/sdk/pixel' (Meta Pixel event ids),
+ * '@dakio/sdk/webhooks' (verifyWebhook, on your server).
  */
 export { createDakio, DEFAULT_BASE_URL } from './client.ts'
 export type { Dakio, DakioOptions } from './client.ts'

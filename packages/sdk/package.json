@@ -1,7 +1,7 @@
 {
   "name": "@dakio/sdk",
-  "version": "0.1.1",
-  "description": "Build any store on Dakio \u2014 catalog, sale prices, COD checkout with fake-order protection, couriers and Nova behind your own React or Next.js site.",
+  "version": "0.2.0",
+  "description": "Build any store on Dakio — catalog, sale prices, COD checkout with fake-order protection, couriers and Nova behind your own React or Next.js site.",
   "license": "MIT",
   "author": "Dakio <hello@dakio.io>",
   "homepage": "https://www.dakio.io/developers",
@@ -18,7 +18,8 @@
     "cod",
     "storefront",
     "react",
-    "nextjs"
+    "nextjs",
+    "webhooks"
   ],
   "type": "module",
   "sideEffects": false,
@@ -43,6 +44,9 @@
       ],
       "pixel": [
         "./dist/pixel/index.d.cts"
+      ],
+      "webhooks": [
+        "./dist/webhooks/index.d.cts"
       ]
     }
   },
@@ -95,6 +99,16 @@
       "require": {
         "types": "./dist/pixel/index.d.cts",
         "default": "./dist/pixel/index.cjs"
+      }
+    },
+    "./webhooks": {
+      "import": {
+        "types": "./dist/webhooks/index.d.ts",
+        "default": "./dist/webhooks/index.js"
+      },
+      "require": {
+        "types": "./dist/webhooks/index.d.cts",
+        "default": "./dist/webhooks/index.cjs"
       }
     },
     "./package.json": "./package.json"

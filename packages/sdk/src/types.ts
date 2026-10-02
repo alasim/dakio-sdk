@@ -203,9 +203,21 @@ export interface CheckoutInput {
   eventId?: string
 }
 
+/**
+ * The shopper a SERVER call is made for (secret keys only). Dakio's
+ * fake-order protection, the OTP caps and Meta's server events judge this IP,
+ * not your server's. In Next.js: `(await headers()).get('x-forwarded-for')`.
+ */
+export interface Buyer {
+  ip: string
+  userAgent?: string | null
+}
+
 export interface CheckoutOptions {
   /** Defaults to a fresh key per call; the SDK reuses it on its own retries. */
   idempotencyKey?: string
+  /** Required with a secret key (server checkout); ignored with a client key. */
+  buyer?: Buyer
 }
 
 export type CheckoutErrorCode =
@@ -213,7 +225,7 @@ export type CheckoutErrorCode =
   | 'NOT_FOUND' | 'NOT_AVAILABLE' | 'NOT_FOR_SALE' | 'PRODUCT_MISSING_PURCHASE_PRICE' | 'OPTION_REQUIRED' | 'OUT_OF_STOCK'
   | 'PRICE_CHANGED' | 'COUPON_UNAVAILABLE' | 'STORE_NOT_TAKING_ORDERS' | 'STORE_CLOSED'
   | 'OTP_INCORRECT' | 'OTP_EXPIRED' | 'SESSION_NOT_FOUND' | 'SESSION_USED' | 'TOO_MANY_ATTEMPTS'
-  | 'RATE_LIMITED' | 'NETWORK_ERROR' | 'CHECKOUT_MUST_RUN_IN_BROWSER' | (string & {})
+  | 'RATE_LIMITED' | 'NETWORK_ERROR' | 'CHECKOUT_MUST_RUN_IN_BROWSER' | 'BUYER_IP_REQUIRED' | (string & {})
 
 export type CheckoutResult =
   | { status: 'PLACED'; orderNumber: string; orderId: string; total: number; test?: boolean }
@@ -256,6 +268,69 @@ export interface TrackedOrder {
   placedAt: string
   updatedAt: string
   test?: boolean
+}
+
+/** A store order, as a secret key reads it (`orders.list`, `orders.get`, order webhooks). */
+export interface Order {
+  id: string
+  orderNumber: string
+  status: OrderStatus
+  statusLabel: string
+  customer: { name: string | null; phone: string | null; email: string | null; address: string | null; city: string | null; district: string | null }
+  items: { productId: string; variantId: string | null; name: string; sku: string | null; qty: number; unitPrice: number; total: number }[]
+  subtotal: number
+  shipping: number
+  discount: number
+  total: number
+  paid: number
+  due: number
+  /** What the buyer hands the courier (null when not cash on delivery). */
+  codAmount: number | null
+  paymentMethod: string
+  courier: { provider: string; trackingCode: string | null } | null
+  note: string | null
+  /** `website_sdk` = a custom website, `storefront` = the Dakio store, null = made in Dakio (manual, POS, Nova…). */
+  source: { channel: string | null; apiKeyId: string | null }
+  currency: string
+  placedAt: string
+  updatedAt: string
+  test?: boolean
+}
+
+export interface OrderQuery {
+  page?: number
+  /** Up to 100. Default 25. */
+  limit?: number
+  /** ISO date or Date: orders placed since. */
+  createdSince?: string | Date
+  /** ISO date or Date: orders changed since — oldest change first, for syncing. */
+  updatedSince?: string | Date
+  /** Any form of the buyer's number. */
+  phone?: string
+}
+
+export interface OrderPage {
+  data: Order[]
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
+
+export type WebhookEventType =
+  | 'product.updated' | 'product.deleted' | 'stock.changed'
+  | 'order.created' | 'order.status_changed' | 'store.updated'
+
+export interface WebhookEndpoint {
+  id: string
+  url: string
+  events: WebhookEventType[]
+  description: string | null
+  enabled: boolean
+  /** The signing secret — only in the answer to `webhooks.create()`. */
+  secret: string | null
+  secretLast4: string
+  createdAt: string
 }
 
 export interface AccountCode {

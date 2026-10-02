@@ -7,6 +7,7 @@ export default defineConfig({
     'next/index': 'src/next/index.ts',
     'bd/index': 'src/bd/index.ts',
     'pixel/index': 'src/pixel/index.ts',
+    'webhooks/index': 'src/webhooks/index.ts',
   },
   format: ['esm', 'cjs'],
   dts: true,

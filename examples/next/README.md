@@ -13,3 +13,5 @@ npm run dev
 **Go live:** create a `dk_pub_live_` key in Dakio → Settings → Developers, list your domain under **Allowed websites**, and set `NEXT_PUBLIC_DAKIO_KEY` and `NEXT_PUBLIC_SITE_URL` on Vercel.
 
 The same key is used by server components (catalog) and the browser (checkout). It's a client key, made to be public. Checkout stays in the browser so Dakio's fake-order protection sees each buyer's own IP.
+
+**Instant updates (optional):** the catalog refreshes every minute on its own. To refresh the moment something changes, add a webhook in Dakio → Settings → Developers → Webhooks pointing at `https://<your site>/api/dakio/revalidate` with the events `product.updated`, `product.deleted`, `stock.changed` and `store.updated`, then set its signing secret as `DAKIO_WEBHOOK_SECRET`. The route ([`app/api/dakio/revalidate/route.ts`](app/api/dakio/revalidate/route.ts)) checks the signature and refreshes the product page, the shop and home (every page for a store change).

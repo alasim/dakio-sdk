@@ -26,13 +26,16 @@ In Dakio: **Settings → Developers → Create key**.
 |---|---|---|
 | `dk_pub_test_…` | building | any website, `localhost` included. Orders are **test orders**: no stock moves, no SMS, nothing in your Orders. |
 | `dk_pub_live_…` | your real website | only the websites you list under **Allowed websites** (HTTPS). |
+| `dk_sec_live_…` / `dk_sec_test_…` | your **server** (optional) | servers only: any request from a browser is refused. Shown once. |
 
 A `dk_pub_` key is a **client key**: it's made to sit in browser code. It can only do what a shopper can do (see products, take COD orders, look up orders by phone), never read your customers, money or settings. Revoke it any time in the same screen.
+
+A `dk_sec_` key is a **secret key** for your own server: it reads the store's orders, manages webhooks, and can check out from a server (see [Secret keys](#secret-keys-your-server)). Keep it in a server-only environment variable — never `NEXT_PUBLIC_…`.
 
 ## Rules worth knowing
 
 - **Prices never come from your code.** A cart holds `{ productId, variantId, qty }` only. Every price on screen comes from `dakio.cart.quote()`, and checkout charges exactly the quote.
-- **Checkout runs in the browser.** Dakio's fake-order protection reads the buyer's IP. On a server every buyer would share yours, so the SDK refuses to place orders there (`CHECKOUT_MUST_RUN_IN_BROWSER`). Catalog reads work anywhere, including Next.js server components.
+- **Checkout runs in the browser** with a client key. Dakio's fake-order protection reads the buyer's IP. On a server every buyer would share yours, so the SDK refuses to place orders there with a client key (`CHECKOUT_MUST_RUN_IN_BROWSER`); from a server use a secret key and pass the buyer's IP. Catalog reads work anywhere, including Next.js server components.
 - **Delivery is by district.** Dhaka district pays the store's inside-Dhaka rate; every other district (Gazipur and Narayanganj too) pays the outside rate.
 - **Cash on delivery** is the payment method.
 
@@ -92,6 +95,17 @@ export async function generateMetadata({ params }) {
 // <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(productJsonLd(product, store, { url })) }} />
 ```
 
+Pages refresh every minute on their own. To refresh the moment a product, its stock or the store changes, add a webhook route and point a Dakio webhook at it (events `product.updated`, `product.deleted`, `stock.changed`, `store.updated`):
+
+```ts
+// app/api/dakio/revalidate/route.ts
+import { revalidatePath, revalidateTag } from 'next/cache'
+import { createRevalidateRoute } from '@dakio/sdk/next'
+export const POST = createRevalidateRoute({ secret: process.env.DAKIO_WEBHOOK_SECRET!, revalidatePath, revalidateTag })
+```
+
+It checks the signature, then refreshes `/p/<slug>`, `/shop` and `/` (every page for a store change). Pass `targets(event)` if your routes differ.
+
 ```ts
 // app/sitemap.ts
 import { dakioSitemap } from '@dakio/sdk/next'
@@ -119,8 +133,11 @@ export default () => dakioRobots({ baseUrl: 'https://mybrand.com.bd' })
 | `account.sendCode(phone)` / `account.orders({ sessionToken, otp })` | "my orders" by phone + SMS code, with no passwords |
 | `orders.track({ orderNumber, phone })` | status (`placed` → `confirmed` → `preparing` → `shipped` → `on_the_way` → `out_for_delivery` → `delivered`, or `cancelled` / `returned`), timeline, courier, items, COD amount, or `null` |
 | `visits.ping({ sessionId, page })` | `true` / `false`, never throws |
+| `orders.list({ page, limit, createdSince, updatedSince, phone })` | **secret key.** `{ data, page, limit, total, totalPages }` of full orders (customer, items, totals, courier, source) |
+| `orders.get(idOrNumber)` | **secret key.** One order, or `null` |
+| `webhooks.list()` / `webhooks.create({ url, events })` / `webhooks.delete(id)` | **live secret key.** The same list as Settings → Developers → Webhooks |
 
-Everything else throws a `DakioError` with a stable `code` (`INVALID_PARAM`, `RATE_LIMITED`, `ORIGIN_NOT_ALLOWED`, `KEY_REVOKED`, `NETWORK_ERROR`, …) and an HTTP `status`. Reads and checkout retry network failures and 502/503/504 on their own; checkout retries reuse the same `Idempotency-Key`.
+Everything else throws a `DakioError` with a stable `code` (`INVALID_PARAM`, `RATE_LIMITED`, `ORIGIN_NOT_ALLOWED`, `KEY_REVOKED`, `SECRET_KEY_REQUIRED`, `NETWORK_ERROR`, …) and an HTTP `status`. Reads and checkout retry network failures and 502/503/504 on their own; checkout retries reuse the same `Idempotency-Key`.
 
 ### Checkout input
 
@@ -135,6 +152,64 @@ await dakio.checkout.create({
 ```
 
 Refusal codes: `INVALID_PHONE`, `DISTRICT_REQUIRED`, `CITY_REQUIRED`, `EMPTY_CART`, `NOT_FOUND`, `NOT_AVAILABLE`, `OPTION_REQUIRED`, `OUT_OF_STOCK` (+ `productId`), `PRICE_CHANGED`, `COUPON_UNAVAILABLE`, `STORE_NOT_TAKING_ORDERS`, `RATE_LIMITED`, `NETWORK_ERROR`.
+
+## Secret keys (your server)
+
+Everything above works with a client key and no server. A secret key adds what needs one:
+
+```ts
+// server only: an API route, a server action, a worker
+import { createDakio } from '@dakio/sdk'
+const dakio = createDakio({ key: process.env.DAKIO_SECRET_KEY! })   // dk_sec_live_…
+
+// Sync orders into your own system
+const { data } = await dakio.orders.list({ updatedSince: lastSync, limit: 100 })
+
+// Check out from a server: say who the shopper is, so fake-order protection judges them, not you
+import { headers } from 'next/headers'
+const h = await headers()
+const result = await dakio.checkout.create(input, {
+  buyer: { ip: h.get('x-forwarded-for') ?? '', userAgent: h.get('user-agent') },
+})
+```
+
+- A secret key refuses to start in a browser (`SECRET_KEY_IN_BROWSER`), and Dakio refuses any request carrying one with a browser `Origin`. If one ever reaches front-end code, revoke it.
+- From a server, checkout, codes, abandoned carts and "my orders" need `buyer` (`BUYER_IP_REQUIRED`). The IP goes to Dakio as `Dakio-Buyer-Ip`, which Dakio trusts from secret keys only.
+- `dk_sec_test_` places test orders and lists test orders, like `dk_pub_test_`.
+
+## Webhooks
+
+Dakio → **Settings → Developers → Webhooks**: add an HTTPS URL on your server and pick events. Dakio POSTs JSON within seconds of the change:
+
+| Event | `data` |
+|---|---|
+| `product.updated` | `{ id, slug, published, product }`: created or changed. `product` is what `products.get` answers now, `null` when it isn't published |
+| `product.deleted` | `{ id, slug }` |
+| `stock.changed` | `{ productId, variantId, slug, stock, inStock, productStock }` |
+| `order.created` | `{ order }`: every new order, wherever it was placed |
+| `order.status_changed` | `{ from, to, order }`: `placed` → `confirmed` → … → `delivered`, or `cancelled` / `returned` |
+| `store.updated` | `{ store }`: anything `store.get()` answers (name, logo, delivery rates, a sale banner…) |
+
+Each delivery is signed. Check it with the endpoint's signing secret (`whsec_…`) before trusting it:
+
+```ts
+import { verifyWebhook } from '@dakio/sdk/webhooks'
+
+export async function POST(req: Request) {
+  const event = await verifyWebhook({
+    body: await req.text(),                          // the raw body
+    signature: req.headers.get('dakio-signature'),
+    secret: process.env.DAKIO_WEBHOOK_SECRET!,
+  })                                                 // throws WEBHOOK_SIGNATURE_INVALID (answer 400)
+  if (event.type === 'order.created') await saveOrder(event.data.order)
+  return new Response('ok')
+}
+```
+
+- `Dakio-Signature: t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<body>">`; deliveries signed more than 5 minutes ago are refused (replays).
+- Answer 2xx within 10 seconds. Anything else is retried (10 s, 1 min, 5 min, 30 min, 1 h, 2 h, 4 h, then every 8 h) for 24 hours. The last 50 deliveries and your server's answers are in Settings → Developers, with **Send test** and **Resend**.
+- An event can arrive twice or out of order: dedupe on `event.id`, and treat `data` as the latest state.
+- Webhooks are never sent to private or local addresses.
 
 ## Test keys
 
