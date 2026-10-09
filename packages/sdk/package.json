@@ -1,6 +1,6 @@
 {
   "name": "@dakio/sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Build any store on Dakio — catalog, sale prices, COD checkout with fake-order protection, couriers and Nova behind your own React or Next.js site.",
   "license": "MIT",
   "author": "Dakio <hello@dakio.io>",
