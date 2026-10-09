@@ -6,9 +6,11 @@
  *   const checkout = useCheckout(dakio)    // submit → OTP if Dakio asks → placed
  *   useAbandonedCart(dakio, { name, phone, items })   // Incomplete Orders + Nova follow-up
  *   useVisitPing(dakio, pathname)          // the merchant's live-visitors count
+ *   <DakioChat dakioKey={key} />           // the store's chat bubble (Add-ons → Website chat)
  */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import { createCartStore, type CartStore } from '../cart.ts'
+import { loadChat, type ChatOptions } from '../chat.ts'
 import type { Dakio } from '../client.ts'
 import type { CartLine, CheckoutInput, CheckoutResult, Quote, QuoteInput } from '../types.ts'
 
@@ -244,4 +246,15 @@ export function useVisitPing(dakio: Pick<Dakio, 'visits'>, page: string, options
     const t = setInterval(ping, everyMs)
     return () => clearInterval(t)
   }, [dakio, page, enabled, everyMs])
+}
+
+// ─── Website chat ────────────────────────────────────────────────────────────
+
+/**
+ * The store's chat bubble. Put it once in your root layout; it renders nothing
+ * itself and shows nothing while the owner has chat switched off.
+ */
+export function DakioChat({ dakioKey, baseUrl, lang }: { dakioKey: string; baseUrl?: ChatOptions['baseUrl']; lang?: ChatOptions['lang'] }): null {
+  useEffect(() => { loadChat({ key: dakioKey, baseUrl, lang }) }, [dakioKey, baseUrl, lang])
+  return null
 }

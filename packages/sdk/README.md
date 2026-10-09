@@ -238,6 +238,35 @@ const result = await dakio.checkout.create({ ...input, eventId })
 if (result.status === 'PLACED') trackPixel('Purchase', purchaseParams(quote), eventId)
 ```
 
+## Website chat
+
+The store owner switches on a chat bubble in Dakio → Add-ons → Website chat.
+Visitors' messages land in the store's Front Office, and Nova answers them.
+Add it to your site once:
+
+```tsx
+// React / Next.js (root layout, a client component)
+import { DakioChat } from '@dakio/sdk/react'
+<DakioChat dakioKey={process.env.NEXT_PUBLIC_DAKIO_KEY!} />
+```
+
+```ts
+// anything else
+import { loadChat, openChat } from '@dakio/sdk'
+loadChat({ key: 'dk_pub_live_…' })
+document.querySelector('#help')?.addEventListener('click', openChat)
+```
+
+Or with no build step at all:
+
+```html
+<script src="https://dakio-api-production.up.railway.app/webchat/v1/widget.js" data-key="dk_pub_live_…" async></script>
+```
+
+The bubble draws in a shadow root, follows `<html lang>` (English or Bangla),
+and shows nothing while chat is switched off. Use a publishable key whose
+allowed websites include your site; a test key works anywhere.
+
 ## Bangladesh helpers
 
 ```js
