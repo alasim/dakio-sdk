@@ -92,6 +92,25 @@ export interface Product {
   isNew: boolean
   createdAt: string
   variants: Variant[]
+  /**
+   * The merchant's "Goes well with" add-ons, in their order (up to three).
+   * Only on `products.get()`; lists leave it out. Sold-out, unpublished and
+   * dropship add-ons are skipped.
+   */
+  goesWellWith?: GoesWellWith[]
+}
+
+/** One add-on from the merchant's "Goes well with" list. */
+export interface GoesWellWith {
+  product: Product
+  /** The merchant's one-line reason, e.g. "Gold to match the border". */
+  reason: string | null
+  /**
+   * The add-on's price when bought with the main product, if the merchant set
+   * one. Checkout applies it to a line sent with `addOnOf`; never charge it
+   * yourself.
+   */
+  togetherPrice: number | null
 }
 
 export type Sort = 'newest' | 'oldest' | 'price_asc' | 'price_desc' | 'name_asc'
@@ -128,6 +147,8 @@ export interface CartLine {
   productId: string
   variantId: string | null
   qty: number
+  /** The main product's id when this line was added from its "Goes well with" list. */
+  addOnOf?: string
 }
 
 export interface QuoteInput {

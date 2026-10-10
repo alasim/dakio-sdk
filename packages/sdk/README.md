@@ -123,7 +123,7 @@ export default () => dakioRobots({ baseUrl: 'https://mybrand.com.bd' })
 | `store.get()` | name, logo, contact, socials, currency, delivery rates, announcement, campaign banner, Pixel/GTM ids, canonical host |
 | `categories.list()` | `[{ id, name, slug, parentId, productCount }]` (build your own tree from `parentId`) |
 | `products.list({ category, search, ids, page, limit, sort })` | `{ data, page, limit, total, totalPages }`. `category` is an id or slug and includes sub-categories; `limit` up to 100; `sort`: `newest` · `oldest` · `price_asc` · `price_desc` · `name_asc` |
-| `products.get(idOrSlug)` | a product, or `null` |
+| `products.get(idOrSlug)` | a product, or `null`; it carries `goesWellWith`, the merchant's "Goes well with" add-ons (send an add-on's cart line with `addOnOf: <main product id>`) |
 | `shipping.get(district)` | `{ zone, charge }` |
 | `cart.quote({ items, couponCode?, district? })` | priced lines, `problems` (`OUT_OF_STOCK` with `available`, `OPTION_REQUIRED`, `NOT_FOUND`…), coupon result, delivery, total, `ok` |
 | `coupons.validate({ code, subtotal })` | `{ valid, reason, discount, coupon }` |
