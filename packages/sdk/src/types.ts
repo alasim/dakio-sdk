@@ -625,6 +625,8 @@ export interface StudentEnrollment {
 export interface StudentHome {
   student: Student
   enrollments: StudentEnrollment[]
+  /** How to pay a bill that is due (the store's bKash / Nagad / bank), when one is. */
+  pay: PaymentInstructions | null
   test?: boolean
 }
 
