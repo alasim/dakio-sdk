@@ -3,6 +3,9 @@ import type {
   AccountCode, AccountOrder, Buyer, Category, CheckoutInput, CheckoutOptions, CheckoutResult, Commerce, CouponCheck,
   LeadInput, ListQuery, Order, OrderPage, OrderQuery, Product, ProductPage, Quote, QuoteInput, Shipping, DeliveryZone,
   Store, TrackedOrder, WebhookEndpoint, WebhookEventType,
+  ServiceList, Slots, BookingInput, Booking, BookingView, EnquiryInput,
+  ProgramCard, ProgramDetail, EnrollInput, EnrollResult, LoginCode, StudentSession, StudentHome, StudentProgram,
+  ProgressInput, ProgressResult,
 } from './types.ts'
 
 export const DEFAULT_BASE_URL = 'https://dakio-api-production.up.railway.app/api/sdk/v1'
@@ -76,6 +79,45 @@ export interface Dakio extends Commerce {
     delete(id: string): Promise<void>
   }
   visits: { ping(input: { sessionId: string; page?: string }): Promise<boolean> }
+  /** A service business's services, and whether it takes bookings online. */
+  services: { list(): Promise<ServiceList> }
+  bookings: {
+    /** Free times (Dhaka) for a service: the day asked for, else the next open days. */
+    slots(input: { service: string; date?: string }): Promise<Slots>
+    /** Book a free time. Runs in the browser (a client key) or with `buyer` (a secret key). Refusals throw: `SLOT_TAKEN`, `BOOKING_OFF`, `INVALID_PHONE`… */
+    create(input: BookingInput, options?: { buyer?: Buyer }): Promise<Booking>
+    /** The booking behind a token from `create`. Null when there is none. */
+    get(token: string): Promise<BookingView | null>
+  }
+  /** A lead from your own form: a contact and a deal in Dakio, like the store's enquiry form. */
+  enquiries: { send(input: EnquiryInput): Promise<{ ok: boolean; contactId?: string; dealId?: string | null; newContact?: boolean; test?: boolean }> }
+  /**
+   * The coach's academy: programs on the website, enrolling, and the signed-in
+   * student's lessons and progress. A student signs in with their phone and an
+   * SMS code (`login.sendCode` → `login.verify`); pass the token you get as
+   * `student` to the calls that need it.
+   */
+  academy: {
+    programs: {
+      list(): Promise<ProgramCard[]>
+      /** Null when there's no such published program. Locked lessons carry no video. */
+      get(idOrSlug: string): Promise<ProgramDetail | null>
+    }
+    /** Enroll. Signed in: pass `{ student }` and only `program`. Otherwise name + phone. */
+    enroll(input: EnrollInput, options?: { student?: string | null; buyer?: Buyer }): Promise<EnrollResult>
+    login: {
+      sendCode(phone: string, options?: { buyer?: Buyer }): Promise<LoginCode>
+      /** `name` names a phone Dakio has never seen. Wrong code: throws `OTP_INCORRECT` with `attemptsLeft`. */
+      verify(input: { sessionToken: string; otp: string; name?: string }, options?: { buyer?: Buyer }): Promise<StudentSession>
+    }
+    logout(student: string): Promise<void>
+    /** The student and their programs. Throws `STUDENT_SIGNED_OUT` (401) when the token has ended. */
+    me(student: string): Promise<StudentHome>
+    /** One program with every lesson. Throws `NOT_ENROLLED` (403) while their place is pending. */
+    program(student: string, idOrSlug: string): Promise<StudentProgram>
+    /** Save where they are in a lesson. 90% watched, or `completed: true`, finishes it. */
+    progress(student: string, input: ProgressInput): Promise<ProgressResult>
+  }
 }
 
 const isBrowser = () => typeof window !== 'undefined' && typeof document !== 'undefined'
@@ -96,6 +138,8 @@ interface RequestOptions {
   /** Retry network errors, 502/503/504 and an in-progress idempotent request. */
   retry?: boolean
   keepalive?: boolean
+  /** A signed-in academy student's token (Dakio-Student). */
+  student?: string | null
 }
 
 interface Answer<T> { status: number; data: T; raw: unknown }
@@ -123,6 +167,7 @@ export function createDakio(options: DakioOptions): Dakio {
     const headers: Record<string, string> = { 'Dakio-Key': key, Accept: 'application/json' }
     if (opts.body !== undefined) headers['Content-Type'] = 'application/json'
     if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey
+    if (opts.student) headers['Dakio-Student'] = String(opts.student)
     // Only a secret key may say who the shopper is; Dakio ignores it otherwise.
     if (isSecret && opts.buyer?.ip) {
       headers['Dakio-Buyer-Ip'] = String(opts.buyer.ip).split(',')[0].trim()
@@ -289,6 +334,44 @@ export function createDakio(options: DakioOptions): Dakio {
           return true
         } catch { return false }
       },
+    },
+    services: { list: () => get<ServiceList>('/services') },
+    bookings: {
+      slots: (input) => get<Slots>('/bookings/slots', { service: input.service, date: input.date }),
+      async create(input, opts = {}) {
+        shopperCall('Booking', opts.buyer)
+        return (await request<Booking>('POST', '/bookings', { body: input, buyer: opts.buyer })).data
+      },
+      get: (token) => orNull(get<BookingView>(`/bookings/${encodeURIComponent(token)}`)),
+    },
+    enquiries: {
+      send: async (input) => (await request<{ ok: boolean; contactId?: string; dealId?: string | null; newContact?: boolean; test?: boolean }>('POST', '/enquiries', { body: input })).data,
+    },
+    academy: {
+      programs: {
+        list: () => get<ProgramCard[]>('/academy/programs'),
+        get: (idOrSlug) => orNull(get<ProgramDetail>(`/academy/programs/${encodeURIComponent(idOrSlug)}`)),
+      },
+      async enroll(input, opts = {}) {
+        shopperCall('Enrolling', opts.buyer)
+        return (await request<EnrollResult>('POST', '/academy/enroll', { body: input, student: opts.student, buyer: opts.buyer })).data
+      },
+      login: {
+        async sendCode(phone, opts = {}) {
+          shopperCall('Signing in', opts.buyer)
+          return (await request<LoginCode>('POST', '/academy/login', { body: { phone }, buyer: opts.buyer })).data
+        },
+        async verify(input, opts = {}) {
+          shopperCall('Signing in', opts.buyer)
+          return (await request<StudentSession>('POST', '/academy/login/verify', { body: input, buyer: opts.buyer })).data
+        },
+      },
+      async logout(student) {
+        await request('POST', '/academy/logout', { body: {}, student })
+      },
+      me: async (student) => (await request<StudentHome>('GET', '/academy/me', { student, retry: true })).data,
+      program: async (student, idOrSlug) => (await request<StudentProgram>('GET', `/academy/me/programs/${encodeURIComponent(idOrSlug)}`, { student, retry: true })).data,
+      progress: async (student, input) => (await request<ProgressResult>('POST', '/academy/me/progress', { body: input, student, keepalive: true })).data,
     },
   }
 }

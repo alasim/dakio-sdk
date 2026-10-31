@@ -153,6 +153,61 @@ await dakio.checkout.create({
 
 Refusal codes: `INVALID_PHONE`, `DISTRICT_REQUIRED`, `CITY_REQUIRED`, `EMPTY_CART`, `NOT_FOUND`, `NOT_AVAILABLE`, `OPTION_REQUIRED`, `OUT_OF_STOCK` (+ `productId`), `PRICE_CHANGED`, `COUPON_UNAVAILABLE`, `STORE_NOT_TAKING_ORDERS`, `RATE_LIMITED`, `NETWORK_ERROR`.
 
+## Service businesses: services, bookings and the academy
+
+A coach, a tutor, a parlour or a clinic sells time, not boxes. The same client
+reads their services, books free times, and runs a coach's **academy**: programs
+on the website, enrolling, and a student area where people sign in with their
+phone and watch their lessons. Every booking and student is a contact in Dakio,
+with a deal, a timeline and Nova behind it.
+
+```ts
+const { services, booking } = await dakio.services.list()          // booking.open: takes bookings online
+const slots = await dakio.bookings.slots({ service: 'discovery-call', date: '2026-11-02' })
+const b = await dakio.bookings.create({ service: 'discovery-call', date: slots.days[0].date, time: slots.days[0].times[0], name, phone })
+await dakio.bookings.get(b.token)                                  // status, day, time, how to pay an advance
+
+await dakio.enquiries.send({ name, phone, message: 'I want to know about the 1:1 package' })
+```
+
+### The academy
+
+```ts
+const programs = await dakio.academy.programs.list()               // cards: price, lessons, length, seats left
+const program = await dakio.academy.programs.get('career-clarity') // curriculum; only free previews carry a video
+
+// Enroll (in the browser). free → active · paid → pending with an invoice to pay · application → pending
+const r = await dakio.academy.enroll({ program: 'career-clarity', name, phone })
+if (r.payment) location.assign(r.payment.url)                      // the invoice page: bKash, Nagad, bank
+
+// The student signs in with their phone and an SMS code — no passwords.
+const { sessionToken } = await dakio.academy.login.sendCode(phone)
+const { token } = await dakio.academy.login.verify({ sessionToken, otp })   // keep it (30 days)
+
+const home = await dakio.academy.me(token)                         // their programs, progress, any bill due
+const course = await dakio.academy.program(token, 'career-clarity')// every lesson: YouTube id, text, resources, live link
+await dakio.academy.progress(token, { lessonId, positionSec: 312, watchedSec: 312 })  // 90% finishes a lesson
+```
+
+| Call | Returns |
+|---|---|
+| `services.list()` | `{ services, booking: { open, autoConfirm } }` |
+| `bookings.slots({ service, date? })` | free times (Dhaka) for the day asked, else the next open days |
+| `bookings.create(input)` | `{ token, status, date, time, when }`. Throws `SLOT_TAKEN`, `BOOKING_OFF`, `INVALID_PHONE` |
+| `bookings.get(token)` | the booking's status and how to pay an advance, or `null` |
+| `enquiries.send(input)` | a contact and a deal, like the store's enquiry form |
+| `academy.programs.list()` / `.get(idOrSlug)` | program cards / one program with its curriculum, or `null` |
+| `academy.enroll(input, { student? })` | `{ status, access, already, payment, pay, signInToWatch }`. Throws `PROGRAM_FULL`, `COHORT_STARTED` |
+| `academy.login.sendCode(phone)` / `.verify({ sessionToken, otp, name? })` | a code by SMS / `{ token, expiresAt, student }` |
+| `academy.me(token)` | the student and their enrollments with progress |
+| `academy.program(token, idOrSlug)` | the whole program with progress. Throws `NOT_ENROLLED` while their place is pending |
+| `academy.progress(token, { lessonId, positionSec?, watchedSec?, completed? })` | the lesson's progress; `programCompleted` on the last one |
+| `academy.logout(token)` | ends the sign-in |
+
+- Lessons are YouTube videos (unlisted works best), text, or live sessions with a meeting link. A visitor gets a lesson's video only when the coach marked it a free preview.
+- Booking, enrolling and signing in run in the browser with a client key (from a server: a secret key and `buyer`), like checkout.
+- A **test key** writes nothing: bookings and enrollments answer as if made, the sign-in code is always `000000`, and the test student is enrolled in every published program, so you can build the student area before anyone pays.
+
 ## Secret keys (your server)
 
 Everything above works with a client key and no server. A secret key adds what needs one:

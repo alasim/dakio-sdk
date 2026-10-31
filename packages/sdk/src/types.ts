@@ -388,3 +388,275 @@ export interface Commerce {
   cart: { quote(input: QuoteInput): Promise<Quote> }
   checkout: { create(input: CheckoutInput, options?: CheckoutOptions): Promise<CheckoutResult> }
 }
+
+// ── Services and bookings (service businesses) ─────────────────────────────
+
+export type ServicePriceType = 'fixed' | 'from' | 'range' | 'quote'
+
+export interface Service {
+  id: string
+  /** The service's address on the website (`/s/<slug>` on Dakio's own site). */
+  slug: string | null
+  name: string
+  description: string | null
+  category: string | null
+  priceType: ServicePriceType
+  price: number | null
+  priceMax: number | null
+  /** "৳1,500", "from ৳1,500", "৳1,500–3,000" or "Ask for a quote". */
+  priceText: string
+  durationMin: number | null
+  durationText: string | null
+  imageUrl: string | null
+}
+
+export interface ServiceList {
+  services: Service[]
+  /** `open`: the store takes bookings online (it sells services and saved its booking hours). */
+  booking: { open: boolean; autoConfirm: boolean }
+}
+
+export interface SlotDay {
+  /** YYYY-MM-DD, Dhaka. */
+  date: string
+  day: string
+  /** HH:MM, Dhaka, free for this service. */
+  times: string[]
+}
+
+export interface Slots {
+  service: Service
+  /** The day asked for, and whether it had free times. When it had none, `days` are the next open days. */
+  asked: string | null
+  askedFree: boolean
+  days: SlotDay[]
+}
+
+export interface BookingInput {
+  /** A service id or slug. */
+  service: string
+  /** YYYY-MM-DD and HH:MM in Dhaka time, from `bookings.slots`. */
+  date: string
+  time: string
+  name: string
+  phone: string
+  email?: string
+  note?: string
+}
+
+export type BookingStatus = 'requested' | 'confirmed' | 'done' | 'no_show' | 'cancelled'
+
+export interface Booking {
+  /** Keep it: `bookings.get(token)` reads the booking's status later. */
+  token: string
+  status: BookingStatus
+  date: string
+  time: string
+  /** "Sat 2 Nov, 4:30 pm" */
+  when: string
+  test?: boolean
+}
+
+export interface PaymentInstructions {
+  bkash: string | null
+  nagad: string | null
+  bank: string | null
+  note?: string | null
+  [k: string]: unknown
+}
+
+export interface BookingView {
+  status: BookingStatus
+  title: string
+  date: string
+  time: string
+  when: string
+  name: string | null
+  /** How to pay an advance, when the store has payment instructions. */
+  pay: PaymentInstructions | null
+  test?: boolean
+}
+
+export interface EnquiryInput {
+  name: string
+  phone?: string
+  email?: string
+  serviceId?: string
+  message?: string
+  /** Values for the store's own contact fields, by key. */
+  fields?: Record<string, unknown>
+  sourceUrl?: string
+}
+
+// ── Academy (a coach's programs, sold and taught on the website) ───────────
+
+export type ProgramKind = 'course' | 'cohort' | 'coaching'
+/** free: open at once · paid: open when the invoice is paid · application: the coach says yes. */
+export type ProgramAccess = 'free' | 'paid' | 'application'
+
+export interface ProgramCard {
+  id: string
+  slug: string
+  kind: ProgramKind
+  title: string
+  subtitle: string | null
+  coverUrl: string | null
+  level: string
+  durationText: string | null
+  language: 'bn' | 'en'
+  access: ProgramAccess
+  price: number
+  compareAtPrice: number | null
+  /** A cohort's first day (ISO). */
+  startsAt: string | null
+  seats: number | null
+  seatsLeft: number | null
+  /** A coaching package: how many 1:1 sessions it includes. */
+  sessionsIncluded: number | null
+  moduleCount: number
+  lessonCount: number
+  durationSec: number
+  previewCount: number
+}
+
+export interface LessonOutline {
+  id: string
+  moduleId: string
+  kind: 'video' | 'text' | 'live'
+  title: string
+  summary: string | null
+  durationSec: number
+  isPreview: boolean
+  thumbnailUrl: string | null
+  /** Only for a free preview here; every lesson for an enrolled student. */
+  youtubeId: string | null
+  liveAt: string | null
+  locked: boolean
+}
+
+export interface ProgramModule<L = LessonOutline> {
+  id: string
+  title: string
+  summary: string | null
+  lessons: L[]
+}
+
+export interface ProgramDetail extends ProgramCard {
+  /** Sanitised HTML. */
+  summary: string
+  introYoutubeId: string | null
+  outcomes: string[]
+  includes: string[]
+  audience: string[]
+  faq: { q: string; a: string }[]
+  /** The service a coaching package's sessions are booked as. */
+  serviceId: string | null
+  modules: ProgramModule[]
+}
+
+export interface EnrollInput {
+  /** A program id or slug. */
+  program: string
+  /** Not needed when a signed-in student's token is passed. */
+  name?: string
+  phone?: string
+  email?: string
+  note?: string
+  /** An application's answers, by question. */
+  answers?: Record<string, string>
+}
+
+export interface EnrollResult {
+  status: 'active' | 'pending' | 'completed'
+  access: ProgramAccess
+  /** They were already in this program. */
+  already: boolean
+  enrollmentId: string
+  /** A paid program: the invoice to pay (its page has the store's bKash/Nagad/bank). */
+  payment: { url: string | null; amount: number; number: string } | null
+  pay: PaymentInstructions | null
+  /** Enrolled without signing in: they sign in with the same phone to watch. */
+  signInToWatch: boolean
+  test?: boolean
+}
+
+export interface LoginCode {
+  sessionToken: string
+  expiresAt: string
+  /** Test keys (always 000000), or a store without SMS outside production. */
+  devCode?: string
+  test?: boolean
+}
+
+export interface Student {
+  name: string
+  phone: string | null
+  email: string | null
+}
+
+export interface StudentSession {
+  /** Send it as `student` on the calls below. Keep it in the browser (it lasts 30 days). */
+  token: string
+  expiresAt: string
+  student: Student
+  test?: boolean
+}
+
+export interface EnrollmentProgress {
+  completedLessons: number
+  totalLessons: number
+  percent: number
+  /** The first unfinished lesson: where "Continue" goes. */
+  nextLessonId: string | null
+  lastLessonId: string | null
+}
+
+export interface StudentEnrollment {
+  id: string
+  status: 'pending' | 'active' | 'completed'
+  enrolledAt: string
+  activatedAt: string | null
+  program: ProgramCard
+  progress: EnrollmentProgress | null
+  /** A pending paid enrollment's invoice. */
+  bill: { number: string; total: number; paid: number; status: string; url: string } | null
+}
+
+export interface StudentHome {
+  student: Student
+  enrollments: StudentEnrollment[]
+  test?: boolean
+}
+
+export interface StudentLesson extends LessonOutline {
+  bodyHtml: string
+  resources: { label: string; url: string }[]
+  liveUrl: string | null
+  progress: { positionSec: number; watchedSec: number; completed: boolean; completedAt: string | null }
+}
+
+export interface StudentProgram extends Omit<StudentEnrollment, 'bill'> {
+  detail: Omit<ProgramDetail, 'modules'> & { modules: ProgramModule<StudentLesson>[] }
+  test?: boolean
+}
+
+export interface ProgressInput {
+  lessonId: string
+  /** Where the player is now (the resume point). */
+  positionSec?: number
+  /** The furthest point reached. 90% of the lesson finishes it. */
+  watchedSec?: number
+  /** "Mark as done" (text and live lessons). */
+  completed?: boolean
+}
+
+export interface ProgressResult {
+  lessonId: string
+  positionSec: number
+  watchedSec: number
+  completed: boolean
+  completedAt: string | null
+  /** This finished the last lesson: the program is completed. */
+  programCompleted?: boolean
+  test?: boolean
+}
